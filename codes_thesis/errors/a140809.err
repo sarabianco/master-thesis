@@ -1,0 +1,4 @@
+/home/STUDENTI/sara.bianco8/master_thesis/DecayLengths.py:104: RuntimeWarning: invalid value encountered in sqrt
+  gammabeta = (np.sqrt(p[:,0]**2 -  M**2))/M
+/home/STUDENTI/sara.bianco8/master_thesis/DecayLengths.py:104: RuntimeWarning: invalid value encountered in sqrt
+  gammabeta = (np.sqrt(p[:,0]**2 -  M**2))/M
