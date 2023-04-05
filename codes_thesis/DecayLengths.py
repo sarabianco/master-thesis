@@ -93,32 +93,52 @@ def dark_seesaw():
 
 def dot4(p1,p2):
   #print("printing momenta", p1,p2)
-  #print(p1[0,:])
-  a = p1[0,:]**2*p2[0,:]**2-p1[1,:]**2*p2[1,:]**2-p1[2,:]**2*p2[2,:]**2-p1[3,:]**2*p2[3,:]**2
+  #print("boh vediamo", p1[0,:])
+  a = (p1[0,:])*(p2[0,:])-(p1[1,:])*(p2[1,:])-(p1[2,:])*(p2[2,:])-(p1[3,:])*(p2[3,:])
+  #a = np.multiply((p1[0,:]**2),(p2[0,:]**2))-np.multiply((p1[1,:]**2),(p2[1,:]**2))-np.multiply((p1[2,:]**2),(p2[2,:]**2))-np.multiply((p1[3,:]**2),(p2[3,:]**2))
+  #a = (p1[0,0]**2)*(p2[0,0]**2)-(p1[1,0]**2)*(p2[1,0]**2)-(p1[2,0]**2)*(p2[2,0]**2)-(p1[3,0]**2)*(p2[3,0]**2)
+  #a = p1[:,0]**2*p2[:,0]**2-p1[:,1]**2*p2[:,1]**2-p1[:,2]**2*p2[:,2]**2-p1[:,3]**2*p2[:,3]**2
   #print("printing prudct", a)
   return a
 
 def get_decay_length_in_lab(p, l_decay_proper_cm):
   M = np.sqrt(dot4(p.T, p.T))
-  #print("not sure what I'm printing", p[:,0])
-  gammabeta = (np.sqrt(p[:,0]**2 -  M**2))/M	
-  return (l_decay_proper_cm*gammabeta)
+  print("mass:", M)
+  #M = np.sqrt(dot4(p, p))
+  #for i in range(len(p[:,0])):
+   # if ((p[i,0]**2 -  M[i]**2)<0):
+    #  print("negative value in rad!!!!", (p[i,0]**2 -  M[i]**2))
+  gammabeta = (np.sqrt(p[:,0]**2 -  M**2))/M
+  print("l decay proper", l_decay_proper_cm)
+  l_decay_lab=l_decay_proper_cm*gammabeta
+  #print("printing decay length in lab",l_decay_lab)
+  return l_decay_lab
 
-def plot_graphs(p,decayl):
+def plot_graphs(p,decayl,model):
   fig2 = plt.figure()
   ax = plt.subplot(111)
-  ax.plot(p, decayl)
+  ax.plot( p[:,0], decayl,'.', color='darkred')
   ax.set_ylabel('Decay Length [cm]')
-  ax.set_xlabel('p [GeV]')
-  ax.legend(loc='upper right')
-  fig2.savefig('./%s.png' %timestr)
+  ax.set_xlabel(r'$E_\nu/$GeV')
+  ax.legend()
+  fig2.savefig('./plots/%s_%s.png' % (timestr,model))
+  plt.close()
+
+def plot_bar(p,decayl,model):
+  fig2 = plt.figure()
+  ax = plt.subplot(111)
+  ax.bar(p[:,0], decayl)
+  ax.set_ylabel('Decay Length [cm]')
+  ax.set_xlabel(r'$E_\nu/$GeV')
+  ax.legend()
+  fig2.savefig('./plots/%s_%s.png' % (timestr,model))
   plt.close()
 
 def plot_isto(p,decayl,model):
   # and now histogram neutrino energy as an example
   fig, ax = dn.plot_tools.std_fig(figsize=(10,4))
 
-  # unfortunately, the columns of the numpy array format are not specified and the correspondence is done by hand
+  # unfortunately, the columns of the nhumpy array format are not specified and the correspondence is done by hand
   _=ax.hist(p[:,0], weights=decayl, bins=50, color='blue', histtype='step', label='numpy')
 
   ax.legend()
@@ -151,10 +171,13 @@ def threeone():
   pN = df.P_decay_N_parent.values
 
   l_decay_lab_cm = get_decay_length_in_lab(pN, l_decay_proper_cm)
-  print("printing p 3+1", pN)
+  #print("printing p 3+1", pN)
   #plot_graphs(pN,l_decay_lab_cm)
   model = '3+1'
-  plot_isto(pN,l_decay_lab_cm,model)
+  #plot_isto(pN,l_decay_lab_cm,model)
+  plot_graphs(pN,l_decay_lab_cm,model)
+  #plot_bar(pN,l_decay_lab_cm,model)
+
 
 def threetwo():
   # ---------------------------3+2------------------------------
@@ -184,10 +207,12 @@ def threetwo():
   pN = df.P_decay_N_parent.values
 
   l_decay_lab_cm = get_decay_length_in_lab(pN, l_decay_proper_cm)
-  print("printing printing p 3+2", pN)
+  #print("printing printing p 3+2", pN)
   #plot_graphs(pN,l_decay_lab_cm)
   model = '3+2'
-  plot_isto(pN,l_decay_lab_cm,model)
+  #plot_isto(pN,l_decay_lab_cm,model)
+  plot_graphs(pN,l_decay_lab_cm,model)
+  #plot_bar(pN,l_decay_lab_cm,model)
 
 if __name__=='__main__':
 
