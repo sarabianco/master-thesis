@@ -1,105 +1,90 @@
-import os
 import numpy as np
-import pandas as pd
-from pathlib import Path
-import DarkNews as dn
-from DarkNews import GenLauncher
-from DarkNews import const
-import matplotlib
-matplotlib.use('AGG')
-import matplotlib.pyplot as plt
-import time
-import sys
+import scipy
 from . import math_vecs as mv
 from . import cuts
 from . import exp_params as ep
-#np.set_printoptions(threshold=sys.maxsize)
-timestr = time.strftime("%Y%m%d-%H%M%S")
 
-#---------------------DarkNews event generator launcher-----------------------
+from DarkNews import const
 
-def comp_decay_lengths3PM(**kwargs):
-  print("Initialization...")
-  
-  print("Computing decay length")
-  gen_object = GenLauncher(neval=1000, **kwargs)
-  df = gen_object.run(loglevel="INFO")
-  return df
 
-#------------------------Compute the complete spectum-------------------------
-
+# COMPUTE SPECTRUM FOR ANY EXPERIMENT
 def compute_spectrum(df, EXP='miniboone', EVENT_TYPE='asymmetric'):
-  """compute_spectrum _summary_
-  Parameters
-  ----------
-  df : pd.DatagFrame
-      DarkNews events (preferrably after selecting events inside detector)
-  EXP : str, optional
-      what experiment to use, by default 'miniboone' but can also be 'microboone'
-  EVENT_TYPE : str, optional
-      what kind of "mis-identificatin" selection to be used:
-          for photons:
-              'photon' assumes this is a photon and therefore always a single shower
-          for lepton pairs:
-              'asymmetric' picks events where one of the letpons (independent of charge) is below a hard threshold
-              'overlapping' picks events where the two leptons are overlapping
-              'both' for *either* asymmetric or overlapping condition to be true
-              'separated' picks events where both letpons are above threshold and non-overlapping by default 'asymmetric'
-  Returns
-  -------
-  pd.DatagFrame
-      A new dataframe with additional columns containing weights of the selected events.
-  """
-  df = df.copy(deep=True)
-  # Initial weigths
-  w = df['w_event_rate'].values # typically already selected for fiducial volume
+    """compute_spectrum _summary_
 
-  if EVENT_TYPE=='photon':
-      # Smear e+ and e-
-      pgamma = cuts.smear_samples(df['P_decay_photon'], 0.0, EXP=EXP)
+    Parameters
+    ----------
+    df : pd.DatagFrame
+        DarkNews events (preferrably after selecting events inside detector)
+    EXP : str, optional
+        what experiment to use, by default 'miniboone' but can also be 'microboone'
+    EVENT_TYPE : str, optional
+        what kind of "mis-identificatin" selection to be used:
+            for photons:
+                'photon' assumes this is a photon and therefore always a single shower
+            for lepton pairs:
+                'asymmetric' picks events where one of the letpons (independent of charge) is below a hard threshold
+                'overlapping' picks events where the two leptons are overlapping
+                'both' for *either* asymmetric or overlapping condition to be true
+                'separated' picks events where both letpons are above threshold and non-overlapping by default 'asymmetric'
 
-      # compute some reco kinematical variables from smeared electrons
-      pgamma_mod = mv.modulus3(pgamma)
-      costhetagamma = pgamma[3]/pgamma_mod
-      Evis = pgamma[0]
-      theta_beam = np.arccos(costhetagamma)*180.0/np.pi
-  else:
-      # Smear e+ and e-
-      pep = cuts.smear_samples(df['P_decay_ell_plus'],const.m_e,EXP=EXP)
-      pem = cuts.smear_samples(df['P_decay_ell_minus'],const.m_e,EXP=EXP)
+    Returns
+    -------
+    pd.DatagFrame
+        A new dataframe with additional columns containing weights of the selected events.
+    """
 
-      # compute some reco kinematical variables from smeared electrons
-      pep_mod = mv.modulus3(pep)
-      pem_mod = mv.modulus3(pem)
-      costhetaep = pep[3]/pep_mod
-      costhetaem = pem[3]/pem_mod
-      Delta_costheta = mv.dot3(pem,pep)/pem_mod/pep_mod
+    df = df.copy(deep=True)
+    # Initial weigths
+    w = df['w_event_rate'].values # typically already selected for fiducial volume
 
-      Evis, theta_beam, w, eff_s = signal_events(pep, pem, Delta_costheta, costhetaep, costhetaem, w, THRESHOLD=ep.THRESHOLD[EXP], ANGLE_MAX=ep.ANGLE_MAX[EXP], EVENT_TYPE=EVENT_TYPE)
+    if EVENT_TYPE=='photon':
+        # Smear e+ and e-
+        pgamma = cuts.smear_samples(df['P_decay_photon'], 0.0, EXP=EXP)
+
+        # compute some reco kinematical variables from smeared electrons
+        pgamma_mod = mv.modulus3(pgamma)
+        costhetagamma = pgamma[3]/pgamma_mod
+        Evis = pgamma[0]
+        theta_beam = np.arccos(costhetagamma)*180.0/np.pi
+    else:
+        # Smear e+ and e-
+        pep = cuts.smear_samples(df['P_decay_ell_plus'],const.m_e,EXP=EXP)
+        pem = cuts.smear_samples(df['P_decay_ell_minus'],const.m_e,EXP=EXP)
+
+        # compute some reco kinematical variables from smeared electrons
+        pep_mod = mv.modulus3(pep)
+        pem_mod = mv.modulus3(pem)
+        costhetaep = pep[3]/pep_mod
+        costhetaem = pem[3]/pem_mod
+        Delta_costheta = mv.dot3(pem,pep)/pem_mod/pep_mod
+
+        Evis, theta_beam, w, eff_s = signal_events(pep, pem, Delta_costheta, costhetaep, costhetaem, w, THRESHOLD=ep.THRESHOLD[EXP], ANGLE_MAX=ep.ANGLE_MAX[EXP], EVENT_TYPE=EVENT_TYPE)
 
 
-  ############################################################################
-  # Applies analysis cuts on the surviving LEE candidate events
-  Evis2, theta_beam, w2, eff_c = expcuts(Evis, theta_beam, w, EXP=EXP,EVENT_TYPE=EVENT_TYPE)
+    ############################################################################
+    # Applies analysis cuts on the surviving LEE candidate events
+    Evis2, theta_beam, w2, eff_c = expcuts(Evis, theta_beam, w, EXP=EXP,EVENT_TYPE=EVENT_TYPE)
 
-  ############################################################################
-  # Compute reconsructed neutrino energy
-  # this assumes quasi-elastic scattering to mimmick MiniBooNE's assumption that the underlying events are nueCC.
-  df['reco_Enu'] = const.m_proton * (Evis) / ( const.m_proton - (Evis)*(1.0 - np.cos(theta_beam)))
+    ############################################################################
+    # Compute reconsructed neutrino energy
+    # this assumes quasi-elastic scattering to mimmick MiniBooNE's assumption that the underlying events are nueCC.
+    df['reco_Enu'] = const.m_proton * (Evis) / ( const.m_proton - (Evis)*(1.0 - np.cos(theta_beam)))
 
-  eff_final, w2 = get_efficiencies(df['reco_Enu'],Evis,w,w2,EXP=EXP)
+    eff_final, w2 = get_efficiencies(df['reco_Enu'],Evis,w,w2,EXP=EXP)
 
-  ############################################################################
-  # return reco observables of LEE -- regime is still a true quantity...
-  df['reco_w'] = w2 * (6.1/5.)**3 # correcting for the fiducial volume cut already in MiniBooNE's efficiencies
-  df['reco_Evis'] = Evis2
-  df['reco_theta_beam'] = theta_beam
-  df['reco_costheta_beam'] = np.cos(theta_beam*np.pi/180)
-  df['reco_eff'] = eff_final
+    ############################################################################
+    # return reco observables of LEE -- regime is still a true quantity...
+    df['reco_w'] = w2 * (6.1/5.)**3 # correcting for the fiducial volume cut already in MiniBooNE's efficiencies
+    df['reco_Evis'] = Evis2
+    df['reco_theta_beam'] = theta_beam
+    df['reco_costheta_beam'] = np.cos(theta_beam*np.pi/180)
+    df['reco_eff'] = eff_final
 
-  return df
+    return df
+
 
 def get_efficiencies(reco_Enu, Evis, w, w2, EXP='miniboone'):
+
     if EXP=='miniboone':
         ###########################################################################
         # Now, a trick to get the approximate PMT and particle ID efficiencies
@@ -137,7 +122,7 @@ def get_efficiencies(reco_Enu, Evis, w, w2, EXP='miniboone'):
 
 def signal_events(pep, pem, cosdelta_ee, costheta_ep, costheta_em, w, THRESHOLD=0.03, ANGLE_MAX=13.0, EVENT_TYPE='both'):
     """signal_events _summary_
-  # This takes the events and asks for them to be either overlapping or asymmetric
+# This takes the events and asks for them to be either overlapping or asymmetric
         # THRESHOLD --
         # ANGLE_MAX --
     Parameters
@@ -165,6 +150,7 @@ def signal_events(pep, pem, cosdelta_ee, costheta_ep, costheta_em, w, THRESHOLD=
             'overlapping' picks events where the two leptons are overlapping
             'both' for *either* asymmetric or overlapping condition to be true
             'separated' picks events where both letpons are above threshold and non-overlapping by default 'asymmetric'
+
     Returns
     -------
     set of np.ndarrays
@@ -296,11 +282,13 @@ def signal_events(pep, pem, cosdelta_ee, costheta_ep, costheta_em, w, THRESHOLD=
         print(f"Error! Could not find event type {EVENT_TYPE}.")
         return
 
+
 def expcuts(Evis, theta_beam, w, EXP='miniboone',EVENT_TYPE='overlapping'):
     if EXP=='miniboone':
         return MB_expcuts(Evis, theta_beam, w)
     elif EXP=='microboone':
         return muB_expcuts(Evis, theta_beam, w, EVENT_TYPE=EVENT_TYPE)
+
 
 def MB_expcuts(Evis, theta, weights):
 
@@ -333,127 +321,3 @@ def muB_expcuts(Evis, theta, weights, EVENT_TYPE='overlapping'):
 	eff = weights_fs.sum()/weights.sum()
 
 	return Evis, theta, weights_fs, eff
-
-#------------------------------Boost decay length-----------------------------
-
-def get_decay_length_in_lab(p, l_decay_proper_cm):
-  M = np.sqrt(dot4(p.T, p.T)) # mass
-  gammabeta = (np.sqrt(p[:,0]**2 -  M**2))/M
-  l_decay_lab=l_decay_proper_cm*gammabeta
-  return l_decay_lab
-
-#---------------------------------Plotting------------------------------------
-
-def plot_graphs(p,decayl,model):
-  fig2 = plt.figure()
-  ax = plt.subplot(111)
-  ax.plot( p[:,0], decayl,'.', color='darkred')
-  ax.set_ylabel('Decay Length [cm]')
-  ax.set_xlabel(r'$E_\nu/$GeV')
-  ax.legend()
-  fig2.savefig('./plots/%s_%s.png' % (timestr,model))
-  plt.close()
-
-def plot_bar(p,decayl,model):
-  fig2 = plt.figure()
-  ax = plt.subplot(111)
-  ax.bar(p[:,0], decayl)
-  ax.set_ylabel('Decay Length [cm]')
-  ax.set_xlabel(r'$E_\nu/$GeV')
-  ax.legend()
-  fig2.savefig('./plots/%s_%s.png' % (timestr,model))
-  plt.close()
-
-def plot_isto(p,decayl,model):
-  # and now histogram neutrino energy as an example
-  fig, ax = dn.plot_tools.std_fig(figsize=(10,4))
-
-  # unfortunately, the columns of the nhumpy array format are not specified and the correspondence is done by hand
-  _=ax.hist(p[:,0], weights=decayl, bins=50, color='blue', histtype='step', label='numpy')
-
-  ax.legend()
-  ax.set_ylabel('Decay Lengths [cm]')
-  ax.set_xlabel(r'$E_\nu/$GeV')
-
-  fig.savefig('./plots/%s_%s.png' % (timestr,model))
-  plt.close()
-
-# -----------------------------------3+1-------------------------------------
-
-def threeone():
-  '''Testing values given by Jaime'''
-  m4 = 0.2233 #GeV
-  mzprime = 0.3487 #GeV
-  vmu4_def = 3.6e-5
-  ud4_def = 1.0/np.sqrt(2.)
-  gD_def = 2.
-  #umu4_def = np.sqrt(1.0e-12)
-  epsilon_def = 8e-4
-  umu4_f = lambda vmu4 : vmu4/np.sqrt(vmu4**2 + gD_def**2 * ud4_def**4)
-  umu4_c = umu4_f(vmu4_def)
-
-  common_kwargs = {'Umu4':umu4_c, 'UD4':ud4_def, 'mzprime':mzprime, 'm4':m4,
-                     'epsilon2':epsilon_def, 'gD':gD_def, 'HNLtype':"dirac"}
-  
-  df = comp_decay_lengths3PM(**common_kwargs)
-  return df
-
-# -----------------------------------3+2-------------------------------------
-
-def threetwo():
-
-  mzprime = 1.25 #GeV
-  m5 = 0.186 #GeV
-  m4 = 0.1285 #GeV
-  ud4_def = 1.0/np.sqrt(2.)
-  ud5_def = 1.0/np.sqrt(2.)
-  gD_def = 2.
-  epsilon_def = 1e-2
-
-  v54 = gD_def * ud5_def * ud4_def
-  vmu5_def = 2.56e-6
-  #vmu5_def = gD_def * ud5_def * (umu4_def*ud4_def + umu5_def*ud5_def) / np.sqrt(1 - umu4_def**2 - umu5_def**2)
-
-  umu4_c32=vmu5_def/np.sqrt(2*vmu5_def**2 + gD_def**2 * ud5_def**2 * (ud4_def + ud5_def)**2)
-  umu5_c32=umu4_c32
-
-  common_kwargs = {'Umu4':umu4_c32, 'Umu5':umu5_c32, 'UD4':ud4_def,
-                  'UD5':ud5_def, 'mzprime':mzprime, 'm4':m4, 'm5':m5,
-                    'epsilon2':epsilon_def, 'gD':gD_def, 'HNLtype':"dirac"}
-  
-  df = comp_decay_lengths3PM(**common_kwargs)
-  return df
-
-# ----------------------------- DECAY LENGTHS -------------------------------
-
-def decay_length():
-  '''3+1 model'''
-  df1 = threeone()
-  #Compute decay lengths
-  l_decay_proper_cm = df1.attrs['N4_ctau0']
-  pN = df1.P_decay_N_parent.values
-
-  l_decay_lab_cm = get_decay_length_in_lab(pN, l_decay_proper_cm)
-
-  model = '3+1'
-  plot_graphs(pN,l_decay_lab_cm,model)
-
-  '''3+2 model'''
-
-  df2 = threetwo()
-  #Compute decay lengths
-  l_decay_proper_cm = df2.attrs['N5_ctau0']
-  pN = df2.P_decay_N_parent.values
-
-  l_decay_lab_cm = get_decay_length_in_lab(pN, l_decay_proper_cm)
-
-  model = '3+2'
-  plot_graphs(pN,l_decay_lab_cm,model)
-
-# ------------------------- NUMBER OF EVENTS --------------------------------
-
-def events():
-  a = 2
-
-if __name__=='__main__':
-  decay_length()
