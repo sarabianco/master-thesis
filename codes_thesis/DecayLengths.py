@@ -364,16 +364,17 @@ def plot_bar(p,decayl,model):
   fig2.savefig('./plots/%s_%s.png' % (timestr,model))
   plt.close()
 
-def plot_isto(p,decayl,model):
+def plot_isto(p,weight,model, title, xax, yax):
   # and now histogram neutrino energy as an example
   fig, ax = dn.plot_tools.std_fig(figsize=(10,4))
 
   # unfortunately, the columns of the nhumpy array format are not specified and the correspondence is done by hand
-  _=ax.hist(p[:,0], weights=decayl, bins=50, color='blue', histtype='step', label='numpy')
+  _=ax.hist(p[:,0], weights=weight, bins=50, color='blue', histtype='step', label='numpy')
 
   ax.legend()
-  ax.set_ylabel('Decay Lengths [cm]')
-  ax.set_xlabel(r'$E_\nu/$GeV')
+  ax.set_title(title)
+  ax.set_ylabel(yax)
+  ax.set_xlabel(xax)
 
   fig.savefig('./plots/%s_%s.png' % (timestr,model))
   plt.close()
@@ -453,7 +454,38 @@ def decay_length():
 # ------------------------- NUMBER OF EVENTS --------------------------------
 
 def events():
-  a = 2
+  c=5
+
+def events_filter():
+  # Plot histograms for the 3+1 model
+  df1=threeone()
+  df3plus1 = compute_spectrum(df1)
+
+  # Histogram reconstructed neutrino energy
+  df3plus1filt = df3plus1[(df3plus1['reco_Enu']>0) & (df3plus1['reco_Enu']<2.5)]
+  model1 = "3plus1"
+  title1 = '3+1 model - Filtered'
+  yax = 'Events'
+  xaxE = r'Reconstructed $E_{\nu}/$GeV'
+  plot_isto(df3plus1filt['reco_Enu'],df3plus1filt['w_event_rate',''],model1, title1, xaxE, yax)
+
+  # Histogram theta angle
+  xaxtheta=r'Reconstructed cos$\theta$'
+  plot_isto(df3plus1['reco_costheta_beam'], df3plus1['w_event_rate',''],model1, title1, xaxtheta, yax)
+
+  # Plot histograms for the 3+2 model
+  df2=threetwo()
+  df3plus2 = compute_spectrum(df2)
+  df3plus2filt = df3plus2 [(df3plus2 ['reco_Enu']>0) & (df3plus2 ['reco_Enu']<2.5)]
+  model2 = "3plus2"
+  title2 = '3+2 model - Filtered'
+  yax = 'Events'
+  xaxE = r'Reconstructed $E_{\nu}/$GeV'
+  plot_isto(df3plus2filt['reco_Enu'],df3plus2filt['w_event_rate',''],model2, title2, xaxE, yax)
+
+  # Histogram theta angle
+  xaxtheta=r'Reconstructed cos$\theta$'
+  plot_isto(df3plus2['reco_costheta_beam'], df3plus2['w_event_rate',''],model2, title2, xaxtheta, yax)
 
 if __name__=='__main__':
   decay_length()
